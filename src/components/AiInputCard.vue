@@ -1,19 +1,23 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { aiService } from '../services/aiService'
+import { aiService, mergeResults } from '../services/aiService'
 import { foodName } from '../data/foods'
-import type { AiRecognizeResult } from '../types'
+import { formatGrams } from '../services/nutritionEngine'
+import type { AiRecognizeResult, MealKind } from '../types'
 
 const emit = defineEmits<{
-  addMeal: [result: AiRecognizeResult]
+  addMeal: [result: AiRecognizeResult, kind: MealKind]
 }>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const recognizing = ref(false)
+const merging = ref(false)
 const refining = ref(false)
 const result = ref<AiRecognizeResult | null>(null)
+const imageCount = ref(0)
 const correctionText = ref('')
 const feedback = ref('')
+const kind = ref<MealKind>('meal')
 
 function triggerUpload() {
   fileInput.value?.click()
@@ -31,8 +35,27 @@ async function recognize(image: File | string) {
   feedback.value = ''
   try {
     result.value = await aiService.recognizeImage(image)
+    imageCount.value = 1
   } finally {
     recognizing.value = false
+  }
+}
+
+/** 一餐多图：继续上传并合并到当前识别结果 */
+async function mergeUpload() {
+  merging.value = true
+  feedback.value = ''
+  try {
+    const addition = await aiService.recognizeImage(`mock://extra-${Date.now()}`)
+    if (result.value) {
+      result.value = mergeResults(result.value, addition)
+    } else {
+      result.value = addition
+    }
+    imageCount.value++
+    feedback.value = `已合并第 ${imageCount.value} 张图片的识别结果`
+  } finally {
+    merging.value = false
   }
 }
 
@@ -51,14 +74,16 @@ async function applyCorrection() {
 
 function clearResult() {
   result.value = null
+  imageCount.value = 0
   feedback.value = ''
 }
 
 function confirmAdd() {
   if (!result.value) return
-  emit('addMeal', result.value)
-  feedback.value = '已加入今日饮食轨迹！'
+  emit('addMeal', { ...result.value }, kind.value)
+  feedback.value = kind.value === 'snack' ? '已加入今日加餐！' : '已加入今日饮食轨迹！'
   result.value = null
+  imageCount.value = 0
   setTimeout(() => (feedback.value = ''), 3000)
 }
 </script>
@@ -69,7 +94,7 @@ function confirmAdd() {
       <h3 class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
         <i class="fa-solid fa-camera text-mint-500"></i> AI 食物识别与动态修正
       </h3>
-      <span class="text-[11px] text-slate-400">支持上传图片 + 文字修正</span>
+      <span class="text-[11px] text-slate-400">多图合并 + 文字修正</span>
     </div>
 
     <!-- 上传区域 -->
@@ -92,27 +117,51 @@ function confirmAdd() {
       <div v-else-if="!result" class="py-2 cursor-pointer" @click="triggerUpload">
         <i class="fa-solid fa-cloud-arrow-up text-slate-400 text-2xl mb-1"></i>
         <p class="text-xs text-slate-500 font-medium">点击上传饮食图片，或拍摄便当</p>
-        <p class="text-[10px] text-slate-400 mt-0.5">自动识别蔬菜、肉类并估算微量元素</p>
+        <p class="text-[10px] text-slate-400 mt-0.5">自动识别食材并估算克重区间</p>
       </div>
 
-      <div v-else class="relative">
+      <div v-else class="relative space-y-2">
         <div class="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-200 text-left">
           <div class="w-16 h-16 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 text-2xl font-bold shrink-0">
             🥗
           </div>
           <div class="flex-1 text-xs min-w-0">
             <div class="flex justify-between items-start">
-              <span class="font-bold text-slate-700">AI 判定：{{ result.title }}</span>
+              <span class="font-bold text-slate-700">
+                AI 判定：{{ result.title }}
+                <span v-if="imageCount > 1" class="text-[10px] text-mint-600 font-normal">
+                  （已合并 {{ imageCount }} 张图）
+                </span>
+              </span>
               <button @click="clearResult" class="text-slate-400 hover:text-slate-600 shrink-0">
                 <i class="fa-solid fa-xmark"></i>
               </button>
             </div>
-            <p class="text-slate-500 mt-0.5 truncate">
-              {{ result.ingredients.map(i => `${foodName(i.foodId)} ${i.grams}g`).join('、') }}
+            <p class="text-slate-500 mt-0.5">
+              {{ result.ingredients.map(i => `${foodName(i.foodId)} ${formatGrams(i)}`).join('、') }}
             </p>
             <p class="text-mint-600 font-semibold mt-1 text-[11px]">{{ result.note }}</p>
           </div>
         </div>
+
+        <!-- 混合菜肴引导提示 -->
+        <p
+          v-if="result.isMixedDish"
+          class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 text-left leading-relaxed"
+        >
+          <i class="fa-solid fa-lightbulb mr-1"></i>
+          混合菜肴识别可能存在偏差，建议补充描述里面的具体配料（如：里面有半个土豆、200g 瘦肉）
+        </p>
+
+        <!-- 多图合并入口 -->
+        <button
+          @click="mergeUpload"
+          :disabled="merging"
+          class="w-full text-[11px] py-1.5 rounded-lg border border-dashed border-mint-400 text-mint-700 hover:bg-mint-50 transition-colors disabled:opacity-50"
+        >
+          <i class="fa-solid fa-images mr-1" :class="{ 'fa-spin': merging }"></i>
+          {{ merging ? '识别合并中…' : '继续上传图片，合并为同一餐' }}
+        </button>
       </div>
     </div>
 
@@ -135,14 +184,31 @@ function confirmAdd() {
       </button>
     </div>
 
-    <!-- 确认加入按钮 -->
-    <button
-      v-if="result"
-      @click="confirmAdd"
-      class="w-full bg-mint-500 hover:bg-mint-600 text-white py-2 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
-    >
-      <i class="fa-solid fa-plus"></i> 加入今日饮食轨迹
-    </button>
+    <!-- 餐次选择 + 确认加入 -->
+    <div v-if="result" class="flex gap-2">
+      <div class="bg-slate-100 p-1 rounded-xl flex text-xs font-medium shrink-0">
+        <button
+          @click="kind = 'meal'"
+          :class="kind === 'meal' ? 'bg-white text-mint-600 shadow-sm' : 'text-slate-500'"
+          class="px-2.5 py-1.5 rounded-lg transition-all"
+        >
+          正餐
+        </button>
+        <button
+          @click="kind = 'snack'"
+          :class="kind === 'snack' ? 'bg-white text-mint-600 shadow-sm' : 'text-slate-500'"
+          class="px-2.5 py-1.5 rounded-lg transition-all"
+        >
+          加餐
+        </button>
+      </div>
+      <button
+        @click="confirmAdd"
+        class="flex-1 bg-mint-500 hover:bg-mint-600 text-white py-2 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+      >
+        <i class="fa-solid fa-plus"></i> 加入今日饮食轨迹
+      </button>
+    </div>
 
     <p
       v-if="feedback"

@@ -43,6 +43,12 @@ export const NUTRIENTS: Record<NutrientKey, NutrientDef> = {
     ul: 100, advanced: 4, exerciseBoost: false,
     goalTags: ['fatigue'],
   },
+  folate: {
+    key: 'folate', name: '叶酸 (B9)', unit: 'μg',
+    rni: { male: 400, female: 400 },
+    ul: 1000, advanced: 600, exerciseBoost: false,
+    goalTags: ['immune'],
+  },
   ca: {
     key: 'ca', name: '钙 (Ca)', unit: 'mg',
     rni: { male: 800, female: 800 },

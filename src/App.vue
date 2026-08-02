@@ -4,9 +4,26 @@ import { useSettingsStore } from './stores/settings'
 import TodayView from './views/TodayView.vue'
 import AnalysisView from './views/AnalysisView.vue'
 import ProfileView from './views/ProfileView.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 
 const settingsStore = useSettingsStore()
 const activeTab = ref<'today' | 'analysis' | 'profile'>('today')
+
+/** 进阶标准开启确认弹窗（需求 3：确认后方可生效） */
+const showAdvancedConfirm = ref(false)
+
+function onStandardSwitch(target: 'basic' | 'advanced') {
+  if (target === 'advanced' && settingsStore.standard !== 'advanced') {
+    showAdvancedConfirm.value = true
+    return
+  }
+  settingsStore.setStandard(target)
+}
+
+function confirmAdvanced() {
+  settingsStore.setStandard('advanced')
+  showAdvancedConfirm.value = false
+}
 
 const TABS = [
   { key: 'today', label: '今日状态', icon: 'fa-solid fa-utensils' },
@@ -38,7 +55,7 @@ const TABS = [
       <!-- 标准切换开关 -->
       <div class="bg-slate-100 p-1 rounded-xl flex text-xs font-medium">
         <button
-          @click="settingsStore.setStandard('basic')"
+          @click="onStandardSwitch('basic')"
           :class="
             settingsStore.standard === 'basic'
               ? 'bg-white text-mint-600 shadow-sm'
@@ -49,7 +66,7 @@ const TABS = [
           基础 (DRIs)
         </button>
         <button
-          @click="settingsStore.setStandard('advanced')"
+          @click="onStandardSwitch('advanced')"
           :class="
             settingsStore.standard === 'advanced'
               ? 'bg-mint-500 text-white shadow-sm'
@@ -88,5 +105,16 @@ const TABS = [
         <span>{{ tab.label }}</span>
       </button>
     </nav>
+
+    <!-- 进阶标准开启确认弹窗 -->
+    <ConfirmDialog
+      :show="showAdvancedConfirm"
+      title="开启进阶评估标准"
+      message="进阶标准基于前沿高阶健康研究，推荐摄入量高于基础 DRIs（已按 80% 适度化取值），适合追求优化健康状态的人群。是否确认开启？"
+      confirm-text="确认开启"
+      cancel-text="暂不开启"
+      @confirm="confirmAdvanced"
+      @cancel="showAdvancedConfirm = false"
+    />
   </div>
 </template>

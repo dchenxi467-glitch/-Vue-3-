@@ -1,5 +1,5 @@
 import { findFoodByName, registerCustomFood } from '../data/foods'
-import type { AiRecognizeResult } from '../types'
+import type { AiRecognizeResult, MealIngredient } from '../types'
 
 /**
  * AI 食物识别服务抽象层
@@ -9,9 +9,9 @@ import type { AiRecognizeResult } from '../types'
  *   3. 在 createAiService 工厂中按 provider 返回对应实现
  */
 export interface AiService {
-  /** 识别上传的图片，返回食材列表 + 估算克重 */
+  /** 识别上传的图片，返回食材列表 + 估算克重区间 */
   recognizeImage(image: File | string): Promise<AiRecognizeResult>
-  /** 结合文字补充描述，对当前识别结果做动态修正 */
+  /** 结合文字补充描述，对当前识别结果做动态修正（修正值为点值） */
   refine(text: string, current: AiRecognizeResult | null): Promise<AiRecognizeResult>
 }
 
@@ -19,15 +19,42 @@ export interface AiService {
 
 const MOCK_DELAY = 800
 
-const MOCK_PRESET: AiRecognizeResult = {
-  title: '菠菜牛肉面',
-  ingredients: [
-    { foodId: 'spinach', grams: 150 },
-    { foodId: 'beef', grams: 100 },
-    { foodId: 'noodles', grams: 150 },
-  ],
-  note: 'AI 识别为：菠菜炒牛肉配面条（菠菜~150g, 牛肉~100g, 面条~150g）',
-}
+/** 预设识别结果轮换：克重为区间，体现 AI 估算的不确定性 */
+const MOCK_PRESETS: AiRecognizeResult[] = [
+  {
+    title: '菠菜牛肉面',
+    ingredients: [
+      { foodId: 'spinach', gramsMin: 120, gramsMax: 150 },
+      { foodId: 'beef', gramsMin: 80, gramsMax: 100 },
+      { foodId: 'noodles', gramsMin: 140, gramsMax: 180 },
+    ],
+    isMixedDish: false,
+    note: 'AI 识别为：菠菜牛肉面（克重为估算区间，可文字修正）',
+  },
+  {
+    title: '麻辣烫',
+    ingredients: [
+      { foodId: 'spinach', gramsMin: 80, gramsMax: 120 },
+      { foodId: 'tofu', gramsMin: 100, gramsMax: 150 },
+      { foodId: 'beef', gramsMin: 50, gramsMax: 80 },
+      { foodId: 'noodles', gramsMin: 100, gramsMax: 150 },
+    ],
+    isMixedDish: true,
+    note: 'AI 识别为：麻辣烫（混合菜肴，估算偏差可能较大）',
+  },
+  {
+    title: '鸡胸肉沙拉',
+    ingredients: [
+      { foodId: 'chicken_breast', gramsMin: 100, gramsMax: 130 },
+      { foodId: 'broccoli', gramsMin: 80, gramsMax: 120 },
+      { foodId: 'mixed_nuts', gramsMin: 15, gramsMax: 25 },
+    ],
+    isMixedDish: false,
+    note: 'AI 识别为：鸡胸肉沙拉（克重为估算区间，可文字修正）',
+  },
+]
+
+let presetCursor = 0
 
 const CN_NUM: Record<string, number> = {
   零: 0, 一: 1, 两: 2, 二: 2, 三: 3, 四: 4, 五: 5,
@@ -104,7 +131,9 @@ function delay<T>(value: T, ms: number): Promise<T> {
 
 class MockAiService implements AiService {
   async recognizeImage(_image: File | string): Promise<AiRecognizeResult> {
-    return delay(structuredClone(MOCK_PRESET), MOCK_DELAY)
+    const preset = MOCK_PRESETS[presetCursor % MOCK_PRESETS.length]
+    presetCursor++
+    return delay(structuredClone(preset), MOCK_DELAY)
   }
 
   async refine(text: string, current: AiRecognizeResult | null): Promise<AiRecognizeResult> {
@@ -122,19 +151,19 @@ class MockAiService implements AiService {
 
       const existing = base.ingredients.find((i) => i.foodId === target.id)
       if (existing) {
-        existing.grams = grams // 覆盖：用户修正优先
+        // 用户修正为确定克重：区间收敛为点值
+        existing.gramsMin = grams
+        existing.gramsMax = grams
       } else {
-        base.ingredients.push({ foodId: target.id, grams })
+        base.ingredients.push({ foodId: target.id, gramsMin: grams, gramsMax: grams })
       }
     }
 
-    const parts = base.ingredients.map((i) => i.foodId)
     base.note =
       parsed.length > 0
         ? `已结合文字修正更新 ${parsed.length} 项食材` +
           (unmatched.length ? `；「${unmatched.join('、')}」暂按自定义食材记录（营养素待补全）` : '')
         : '未识别出具体食材克重，已原样保留描述'
-    void parts
     return delay(base, MOCK_DELAY)
   }
 }
@@ -149,3 +178,28 @@ function createAiService(): AiService {
 }
 
 export const aiService: AiService = createAiService()
+
+/* ------------------------------ 多图合并工具 ------------------------------ */
+
+/** 把一次新的识别结果合并进当前餐（相同食材克重区间累加） */
+export function mergeResults(
+  current: AiRecognizeResult,
+  addition: AiRecognizeResult,
+): AiRecognizeResult {
+  const merged = structuredClone(current)
+  for (const ing of addition.ingredients) {
+    const existing = merged.ingredients.find((i: MealIngredient) => i.foodId === ing.foodId)
+    if (existing) {
+      existing.gramsMin += ing.gramsMin
+      existing.gramsMax += ing.gramsMax
+    } else {
+      merged.ingredients.push({ ...ing })
+    }
+  }
+  if (!merged.title.includes(addition.title)) {
+    merged.title = `${merged.title} + ${addition.title}`
+  }
+  merged.isMixedDish = merged.isMixedDish || addition.isMixedDish
+  merged.note = `已合并 ${addition.title} 的识别结果`
+  return merged
+}

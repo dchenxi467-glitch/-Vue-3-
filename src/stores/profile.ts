@@ -7,7 +7,8 @@ const DEFAULT_PROFILE: UserProfile = {
   gender: 'female',
   age: 28,
   weight: 55,
-  activity: 'medium',
+  occupation: 'fitness',
+  special: 'none',
   diet: 'omnivore',
   goals: ['sleep', 'fatigue'],
 }

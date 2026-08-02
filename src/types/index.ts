@@ -1,13 +1,24 @@
-// 缺了啥? —— 全局数据模型定义
+// 缺了啥? —— 全局数据模型定义（v2：区间克重 / 补充剂隔离 / 多维画像）
 
 export type Gender = 'male' | 'female'
-export type Activity = 'low' | 'medium' | 'high'
 export type Diet = 'omnivore' | 'vegan' | 'keto'
 export type Standard = 'basic' | 'advanced'
 
-/** 追踪的营养素 key：VA/VC/VD/VE/VB1/VB12 + 钙/镁/铁/锌 */
+/** 职业/日常状态（替代 v1 的运动强度，决定易流失营养素系数） */
+export type Occupation = 'sedentary' | 'fitness' | 'athlete' | 'manual' | 'delivery'
+
+/** 特殊人群标签 */
+export type SpecialCondition =
+  | 'none'
+  | 'pregnancy_t1'
+  | 'pregnancy_t2'
+  | 'pregnancy_t3'
+  | 'lactation'
+  | 'chronic'
+
+/** 追踪的营养素 key：VA/VC/VD/VE/VB1/VB12/叶酸 + 钙/镁/铁/锌 */
 export type NutrientKey =
-  | 'va' | 'vc' | 'vd' | 've' | 'vb1' | 'vb12'
+  | 'va' | 'vc' | 'vd' | 've' | 'vb1' | 'vb12' | 'folate'
   | 'ca' | 'mg' | 'fe' | 'zn'
 
 /** 关注目标：决定首页置顶营养素 */
@@ -17,7 +28,8 @@ export interface UserProfile {
   gender: Gender
   age: number
   weight: number
-  activity: Activity
+  occupation: Occupation
+  special: SpecialCondition
   diet: Diet
   goals: Goal[]
 }
@@ -32,9 +44,9 @@ export interface NutrientDef {
   senior?: { male?: number; female?: number }
   /** 耐受最高摄入量 UL */
   ul: number
-  /** 进阶文献推荐目标 */
+  /** 进阶文献原始推荐值（引擎按 80% 适度化后生效） */
   advanced: number
-  /** 是否受运动系数影响 */
+  /** 是否受职业体力强度系数影响 */
   exerciseBoost: boolean
   /** 关注目标 → 置顶映射 */
   goalTags: Goal[]
@@ -58,30 +70,63 @@ export interface FoodItem {
   per100g: Partial<Record<NutrientKey, number>>
 }
 
+/** 区间克重：AI 估算存在不确定性，用 [min, max] 表示 */
 export interface MealIngredient {
   foodId: string
-  grams: number
+  gramsMin: number
+  gramsMax: number
 }
 
-export type MealType = '早餐' | '午餐' | '晚餐' | '加餐'
+/** 餐次类别：顺序正餐（第一餐/第二餐…）或加餐 */
+export type MealKind = 'meal' | 'snack'
 export type MealSource = 'ai' | 'manual' | 'corrected' | 'seed'
 
 export interface MealRecord {
   id: string
-  /** 毫秒时间戳，用于按天分组 */
+  /** 毫秒时间戳，用于按天分组与餐次排序 */
   timestamp: number
-  type: MealType
+  kind: MealKind
   title: string
   ingredients: MealIngredient[]
   source: MealSource
+  /** 合并识别的图片数量（一餐多图） */
+  images?: number
 }
 
 /** AI 识别结果 */
 export interface AiRecognizeResult {
   title: string
   ingredients: MealIngredient[]
+  /** 复杂混合菜肴（麻辣烫/盖浇饭等），需要引导用户补充配料 */
+  isMixedDish?: boolean
   note?: string
 }
+
+/** 膳食补充剂打卡记录（与天然食物隔离统计） */
+export interface SupplementRecord {
+  id: string
+  timestamp: number
+  name: string
+  /** 服用粒/片数 */
+  doses: number
+  /** 单粒营养素含量快照 */
+  perDose: Partial<Record<NutrientKey, number>>
+}
+
+/** 补充剂预设（内置库） */
+export interface SupplementDef {
+  id: string
+  name: string
+  doseUnit: string
+  perDose: Partial<Record<NutrientKey, number>>
+}
+
+/** 摄入量区间 */
+export interface IntakeRange {
+  min: number
+  max: number
+}
+export type IntakeMap = Record<NutrientKey, IntakeRange>
 
 /** 长期分析预警 */
 export interface Warning {

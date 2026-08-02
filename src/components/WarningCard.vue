@@ -1,16 +1,24 @@
 <script setup lang="ts">
 import type { Warning } from '../types'
 
-defineProps<{
-  warnings: Warning[]
-}>()
+withDefaults(
+  defineProps<{
+    warnings: Warning[]
+    title?: string
+    headerIcon?: string
+  }>(),
+  {
+    title: 'AI 缺乏可能性预警分析',
+    headerIcon: 'fa-solid fa-triangle-exclamation',
+  },
+)
 </script>
 
 <template>
   <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
     <div class="flex items-center gap-1.5 text-rose-600 font-bold text-sm">
-      <i class="fa-solid fa-triangle-exclamation"></i>
-      <h3>AI 缺乏可能性预警分析</h3>
+      <i :class="headerIcon"></i>
+      <h3>{{ title }}</h3>
     </div>
 
     <p v-if="warnings.length === 0" class="text-xs text-slate-500 bg-mint-50/60 border border-mint-100 rounded-xl p-3">
@@ -21,7 +29,7 @@ defineProps<{
     <div v-else class="space-y-2.5 text-xs">
       <div
         v-for="w in warnings"
-        :key="w.nutrient"
+        :key="w.nutrient + w.title"
         class="p-3 rounded-xl border space-y-1"
         :class="
           w.level === 'high'

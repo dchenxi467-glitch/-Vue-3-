@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { NUTRIENTS, NUTRIENT_KEYS } from '../data/nutrients'
-import type { Goal, NutrientKey, NutrientTarget, UserProfile } from '../types'
+import type {
+  Goal,
+  NutrientKey,
+  NutrientTarget,
+  Occupation,
+  SpecialCondition,
+  UserProfile,
+} from '../types'
 
 const props = defineProps<{
   profile: UserProfile
@@ -20,6 +27,31 @@ const GOAL_OPTIONS: Array<{ key: Goal; label: string }> = [
   { key: 'skin', label: '皮肤抗衰' },
   { key: 'immune', label: '免疫提升' },
 ]
+
+const OCCUPATION_OPTIONS: Array<{ key: Occupation; label: string }> = [
+  { key: 'sedentary', label: '久坐上班族' },
+  { key: 'fitness', label: '运动爱好者' },
+  { key: 'athlete', label: '运动员' },
+  { key: 'manual', label: '重体力劳动（工地等）' },
+  { key: 'delivery', label: '户外奔波（外卖/快递）' },
+]
+
+const SPECIAL_OPTIONS: Array<{ key: SpecialCondition; label: string }> = [
+  { key: 'none', label: '无 / 一般人群' },
+  { key: 'pregnancy_t1', label: '孕早期（1-12周）' },
+  { key: 'pregnancy_t2', label: '孕中期（13-27周）' },
+  { key: 'pregnancy_t3', label: '孕晚期（28周+）' },
+  { key: 'lactation', label: '哺乳期' },
+  { key: 'chronic', label: '慢性病（遵医嘱）' },
+]
+
+const SPECIAL_HINT: Partial<Record<SpecialCondition, string>> = {
+  pregnancy_t1: '已上调叶酸、铁目标，重点关注叶酸补充',
+  pregnancy_t2: '已上调叶酸、铁、钙目标',
+  pregnancy_t3: '已上调叶酸、铁（29mg）、钙目标',
+  lactation: '已上调钙、铁、叶酸、VC 目标',
+  chronic: '慢性病目标值不自动调整，请遵医嘱手动锁定下方目标值',
+}
 
 function toggleGoal(goal: Goal) {
   const goals = props.profile.goals.includes(goal)
@@ -77,17 +109,36 @@ function numVal(v: number | string): number {
         />
       </div>
       <div>
-        <label class="block text-slate-500 mb-1">运动强度</label>
+        <label class="block text-slate-500 mb-1">职业 / 日常状态</label>
         <select
-          :value="profile.activity"
-          @change="emit('updateProfile', { activity: ($event.target as HTMLSelectElement).value as UserProfile['activity'] })"
+          :value="profile.occupation"
+          @change="emit('updateProfile', { occupation: ($event.target as HTMLSelectElement).value as Occupation })"
           class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 font-medium"
         >
-          <option value="low">久坐/轻度</option>
-          <option value="medium">中度运动</option>
-          <option value="high">高强度健身</option>
+          <option v-for="opt in OCCUPATION_OPTIONS" :key="opt.key" :value="opt.key">
+            {{ opt.label }}
+          </option>
         </select>
       </div>
+    </div>
+
+    <div>
+      <label class="block text-slate-500 text-xs mb-1">特殊人群标签</label>
+      <select
+        :value="profile.special"
+        @change="emit('updateProfile', { special: ($event.target as HTMLSelectElement).value as SpecialCondition })"
+        class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-medium"
+      >
+        <option v-for="opt in SPECIAL_OPTIONS" :key="opt.key" :value="opt.key">
+          {{ opt.label }}
+        </option>
+      </select>
+      <p
+        v-if="SPECIAL_HINT[profile.special]"
+        class="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5 mt-1.5"
+      >
+        <i class="fa-solid fa-circle-info mr-1"></i>{{ SPECIAL_HINT[profile.special] }}
+      </p>
     </div>
 
     <div>
