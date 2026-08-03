@@ -48,7 +48,14 @@ function removeDraftItem(idx: number) {
 }
 
 function saveEdit(id: string) {
-  const cleaned = draft.value.filter((i) => i.gramsMax > 0)
+  // 过滤空项并规范区间：用户把 min/max 填反时自动交换
+  const cleaned = draft.value
+    .filter((i) => i.gramsMax > 0)
+    .map((i) =>
+      i.gramsMin > i.gramsMax
+        ? { ...i, gramsMin: i.gramsMax, gramsMax: i.gramsMin }
+        : i,
+    )
   emit('update', id, {
     title: draftTitle.value.trim() || '未命名餐食',
     ingredients: cleaned,
@@ -139,7 +146,7 @@ async function reRecognize(id: string) {
 
               <div
                 v-for="(item, idx) in draft"
-                :key="item.foodId"
+                :key="idx"
                 class="flex items-center gap-1 text-[11px]"
               >
                 <span class="text-slate-600 shrink-0">{{ foodName(item.foodId) }}</span>

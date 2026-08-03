@@ -28,11 +28,8 @@ const sun = computed(() => (props.foodOnly ? 0 : sunMid.value))
 
 const total = computed(() => foodMid.value + sun.value + supp.value)
 
-/** 刻度：保证目标线、总量都可见；UL 在视野内时也可见 */
-const scale = computed(() => {
-  const base = Math.max(total.value, props.target) * 1.15
-  return Math.max(base, Math.min(props.ul, base * 1.0))
-})
+/** 刻度：保证目标线与总量完整可见（余量 15%） */
+const scale = computed(() => Math.max(total.value, props.target) * 1.15)
 
 const pct = (v: number) => Math.min(100, (v / scale.value) * 100)
 
@@ -50,6 +47,7 @@ const overUlW = computed(() =>
 
 const targetLineLeft = computed(() => pct(props.target))
 const ulLineLeft = computed(() => pct(props.ul))
+/** UL 超出可视范围时省略标线（避免误导）；total 超 UL 时 scale ≥ total×1.15 > UL，红线与标线必现 */
 const showUlLine = computed(() => props.ul <= scale.value)
 </script>
 

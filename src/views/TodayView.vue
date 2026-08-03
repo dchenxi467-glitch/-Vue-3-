@@ -53,13 +53,13 @@ const missingTags = computed(() =>
     })),
 )
 
-function onAddMeal(result: AiRecognizeResult, kind: MealKind) {
+function onAddMeal(result: AiRecognizeResult, kind: MealKind, imageCount: number) {
   mealsStore.addMeal({
     kind,
     title: result.title,
     ingredients: result.ingredients,
     source: 'ai',
-    images: 1,
+    images: imageCount ?? 1,
   })
 }
 

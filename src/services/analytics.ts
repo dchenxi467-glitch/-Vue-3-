@@ -177,8 +177,10 @@ export function buildWarnings(
 
 /**
  * UL 越界善意预警（需求 4：单日或多日平均超 UL）
- * 红色——周期平均摄入量超过 UL 上限
- * 黄色——周期平均摄入量达到 UL 的 80%（接近上限）
+ * 每个营养素最多产出一个预警，按优先级：
+ * 1. 周期平均摄入 > UL → 红色（长期超量）
+ * 2. 任一记录日单日摄入 > UL → 红色（单日超量）
+ * 3. 周期平均摄入 ≥ 80% UL → 黄色（接近上限）
  */
 export function buildUlWarnings(
   meals: MealRecord[],
@@ -207,7 +209,23 @@ export function buildUlWarnings(
         title: `超量提醒：${def.name} 平均摄入已超最高耐受量`,
         analysis: `过去 ${days} 天您的${def.name}平均摄入量约 ${Math.round(avgIntake)}${def.unit}，已超过 UL 上限 ${ul}${def.unit}。长期超量可能带来健康负担，建议适度减少补充剂剂量。`,
       })
-    } else if (ulRatio >= 0.8) {
+      continue
+    }
+
+    // 单日维度：任一记录日该营养素摄入超 UL
+    const worstDay = recorded.reduce((a, b) => (b.rates[key] > a.rates[key] ? b : a))
+    const worstIntake = worstDay.rates[key] * targets[key].target
+    if (worstDay.rates[key] > 0 && worstIntake > ul) {
+      warnings.push({
+        nutrient: key,
+        level: 'high',
+        title: `超量提醒：${def.name} ${worstDay.date} 单日摄入超最高耐受量`,
+        analysis: `${worstDay.date} 您的${def.name}单日摄入量约 ${Math.round(worstIntake)}${def.unit}，已超过 UL 上限 ${ul}${def.unit}。偶发单日超量通常无需过度担心，但若主要来自补充剂，建议适度减少剂量。`,
+      })
+      continue
+    }
+
+    if (ulRatio >= 0.8) {
       warnings.push({
         nutrient: key,
         level: 'medium',

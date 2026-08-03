@@ -6,7 +6,7 @@ import { formatGrams } from '../services/nutritionEngine'
 import type { AiRecognizeResult, MealKind } from '../types'
 
 const emit = defineEmits<{
-  addMeal: [result: AiRecognizeResult, kind: MealKind]
+  addMeal: [result: AiRecognizeResult, kind: MealKind, imageCount: number]
 }>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -80,7 +80,7 @@ function clearResult() {
 
 function confirmAdd() {
   if (!result.value) return
-  emit('addMeal', { ...result.value }, kind.value)
+  emit('addMeal', { ...result.value }, kind.value, imageCount.value)
   feedback.value = kind.value === 'snack' ? '已加入今日加餐！' : '已加入今日饮食轨迹！'
   result.value = null
   imageCount.value = 0
