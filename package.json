@@ -2,11 +2,14 @@
   "name": "quelesha",
   "private": true,
   "version": "0.1.0",
+  "main": "electron/main.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:build": "npm run build && electron-builder --win nsis",
+    "electron:build:portable": "npm run build && electron-builder --win portable"
   },
   "dependencies": {
     "pinia": "^4.0.2",
@@ -15,9 +18,37 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-vue": "^6.0.8",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9",
     "vite": "^8.2.0",
     "vue-tsc": "^3.3.9"
+  },
+  "build": {
+    "appId": "com.dchenxi.quelesha",
+    "productName": "缺了啥",
+    "copyright": "Copyright © 2026",
+    "directories": { "output": "D:/temp/quelesha-release" },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "public/icons/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "缺了啥?"
+    },
+    "compression": "maximum"
   }
 }
